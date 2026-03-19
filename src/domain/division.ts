@@ -1,4 +1,7 @@
 import type { GumanEntity } from './types.js';
+import { buildInheritancePackage, applyInheritance } from './inheritance.js';
+import { createGuman } from './factory.js';
+import { transitionState } from './state-machine.js';
 
 function cloneName(parentName: string): string {
   return `${parentName}-offspring-${Date.now().toString().slice(-5)}`;
@@ -12,7 +15,7 @@ export function canDivide(entity: GumanEntity): boolean {
   return Boolean(
     entity.authorization?.enabled &&
       entity.core.energyLevel >= 60 &&
-      entity.core.permissionRequired
+      entity.core.permissionRequired,
   );
 }
 
@@ -26,34 +29,33 @@ export function divideEntity(entity: GumanEntity): {
 
   const divisionCount = entity.core.divisionCount + 1;
 
-  const parent: GumanEntity = {
-    ...entity,
-    state: 'dividing',
-    core: {
-      ...entity.core,
-      energyLevel: entity.core.energyLevel - 25,
-      divisionCount
-    }
-  };
+  const parent: GumanEntity = transitionState(
+    {
+      ...entity,
+      core: {
+        ...entity.core,
+        energyLevel: entity.core.energyLevel - 25,
+        divisionCount,
+      },
+    },
+    'dividing',
+    'Division initiated by authorized Ézó-core.',
+  );
 
-  const offspring: GumanEntity = {
-    ...entity,
-    id: `guman-child-${Date.now()}`,
-    name: cloneName(entity.name),
-    state: 'forming',
-    body: {
-      ...entity.body,
-      position: nextOffset(divisionCount)
+  const inheritancePkg = buildInheritancePackage(entity, divisionCount);
+
+  const baseOffspring = createGuman(cloneName(entity.name), entity.body.archetype);
+
+  const offspring: GumanEntity = applyInheritance(
+    {
+      ...baseOffspring,
+      body: {
+        ...baseOffspring.body,
+        position: nextOffset(divisionCount),
+      },
     },
-    core: {
-      ...entity.core,
-      signature: `ezo-child-${Date.now()}`,
-      energyLevel: 70,
-      divisionCount: 0,
-      lineageCode: `${entity.core.lineageCode}.${divisionCount}`
-    },
-    authorization: undefined
-  };
+    inheritancePkg,
+  );
 
   return { parent, offspring };
 }
